@@ -534,39 +534,88 @@ app.get('/api/recent-bills/:owner_id', async (req, res) => {
     }
 });
 
+// app.post('/api/return-medicine', async (req, res) => {
+//     const { owner_id, invoice_id, item_id, medicine_name, return_quantity, mrp } = req.body;
+//     const client = await pool.connect();
+    
+//     try {
+//         await client.query('BEGIN');
+
+        
+//         const itemUpdate = await client.query(
+//             `UPDATE sale_items SET quantity = quantity - $1 WHERE item_id = $2 RETURNING quantity`,
+//             [return_quantity, item_id]
+//         );
+
+        
+//         if (itemUpdate.rows[0].quantity <= 0) {
+//             await client.query(`DELETE FROM sale_items WHERE item_id = $1`, [item_id]);
+//         }
+
+        
+//         const refundAmount = return_quantity * mrp;
+//         await client.query(
+//             `UPDATE sales_invoices SET total_amount = total_amount - $1 WHERE invoice_id = $2`,
+//             [refundAmount, invoice_id]
+//         );
+
+        
+//         const invUpdate = await client.query(
+//             `UPDATE shop_inventory SET quantity = quantity + $1 
+//              WHERE owner_id = $2 AND medicine_name = $3 AND mrp = $4 RETURNING *`,
+//             [return_quantity, owner_id, medicine_name, mrp]
+//         );
+
+        
+//         if (invUpdate.rows.length === 0) {
+//             await client.query(
+//                 `INSERT INTO shop_inventory (owner_id, medicine_name, quantity, mrp, batch_no) 
+//                  VALUES ($1, $2, $3, $4, 'RETURNED')`,
+//                 [owner_id, medicine_name, return_quantity, mrp]
+//             );
+//         }
+
+//         await client.query('COMMIT');
+//         res.json({ success: true, message: `Returned ${return_quantity} ${medicine_name} successfully! Stock updated.` });
+//     } catch (err) {
+//         await client.query('ROLLBACK');
+//         console.error("Return Medicine Error:", err.message);
+//         res.status(500).json({ error: 'Failed to process return' });
+//     } finally {
+//         client.release();
+//     }
+// });
+
 app.post('/api/return-medicine', async (req, res) => {
-    const { owner_id, invoice_id, item_id, medicine_name, return_quantity, mrp } = req.body;
+    const { owner_id, invoice_id, item_id, medicine_name, return_quantity, mrp, refund_amount } = req.body;
     const client = await pool.connect();
     
     try {
         await client.query('BEGIN');
 
-        
         const itemUpdate = await client.query(
             `UPDATE sale_items SET quantity = quantity - $1 WHERE item_id = $2 RETURNING quantity`,
             [return_quantity, item_id]
         );
 
-        
-        if (itemUpdate.rows[0].quantity <= 0) {
+        // 🔥 FIX: Loading aur crash issue ko rokne ke liye ye condition zaroori hai
+        if (itemUpdate.rows.length > 0 && itemUpdate.rows[0].quantity <= 0) {
             await client.query(`DELETE FROM sale_items WHERE item_id = $1`, [item_id]);
         }
 
+        const finalRefund = refund_amount ? parseFloat(refund_amount) : (return_quantity * mrp);
         
-        const refundAmount = return_quantity * mrp;
         await client.query(
             `UPDATE sales_invoices SET total_amount = total_amount - $1 WHERE invoice_id = $2`,
-            [refundAmount, invoice_id]
+            [finalRefund, invoice_id]
         );
 
-        
         const invUpdate = await client.query(
             `UPDATE shop_inventory SET quantity = quantity + $1 
              WHERE owner_id = $2 AND medicine_name = $3 AND mrp = $4 RETURNING *`,
             [return_quantity, owner_id, medicine_name, mrp]
         );
 
-        
         if (invUpdate.rows.length === 0) {
             await client.query(
                 `INSERT INTO shop_inventory (owner_id, medicine_name, quantity, mrp, batch_no) 
@@ -576,7 +625,10 @@ app.post('/api/return-medicine', async (req, res) => {
         }
 
         await client.query('COMMIT');
-        res.json({ success: true, message: `Returned ${return_quantity} ${medicine_name} successfully! Stock updated.` });
+        res.json({ 
+            success: true, 
+            message: `Returned ${return_quantity} ${medicine_name} successfully! Refund: ₹${finalRefund.toFixed(2)}` 
+        });
     } catch (err) {
         await client.query('ROLLBACK');
         console.error("Return Medicine Error:", err.message);
@@ -585,7 +637,6 @@ app.post('/api/return-medicine', async (req, res) => {
         client.release();
     }
 });
-
 
 app.get('/api/detailed-report/:owner_id/:type', async (req, res) => {
     const { owner_id, type } = req.params;
@@ -639,6 +690,29 @@ app.put('/api/inventory/quick-edit/:id', async (req, res) => {
     } catch (err) {
         console.error("Quick Edit Error:", err.message);
         res.status(500).json({ error: 'Failed to update pack size' });
+    }
+});
+
+// 🔍 SEARCH BILLS BY CUSTOMER NAME OR MOBILE
+app.get('/api/search-bills/:owner_id', async (req, res) => {
+    const { owner_id } = req.params;
+    const { query } = req.query;
+
+    try {
+        const searchTerm = `%${query}%`;
+        // मान कर चल रहे हैं कि आपकी sales टेबल में cart_items (JSON), total_amount, customer_name, customer_mobile सेव होता है
+        const searchResult = await pool.query(
+            `SELECT * FROM sales 
+             WHERE owner_id = $1 
+             AND (customer_mobile LIKE $2 OR customer_name ILIKE $2)
+             ORDER BY created_at DESC LIMIT 20`,
+            [owner_id, searchTerm]
+        );
+
+        res.json({ success: true, data: searchResult.rows });
+    } catch (err) {
+        console.error("❌ Search Bill Error:", err.message);
+        res.status(500).json({ error: 'Failed to search bills.' });
     }
 });
 
