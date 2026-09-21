@@ -347,58 +347,7 @@ app.get('/api/accounts-report/:owner_id', async (req, res) => {
 });
 
 
-// app.post('/api/add-medicine', async (req, res) => {
-//     let { owner_id, inventory_id, medicine_name, batch_no, quantity, mrp, expiry_date, barcode, tablets_per_strip } = req.body;
-    
-//     try {
-//         const cleanName = medicine_name ? medicine_name.trim() : '';
-        
-//         const finalTps = parseInt(tablets_per_strip) > 0 ? parseInt(tablets_per_strip) : 1; 
-        
-//         let targetId = inventory_id;
 
-        
-//         console.log(`\n================================`);
-//         console.log(`📥 NEW REQUEST TO ADD/UPDATE MED`);
-//         console.log(`💊 Medicine: ${cleanName}`);
-//         console.log(`📦 Received Pack Size (Tabs): ${finalTps}`);
-//         console.log(`================================\n`);
-
-//         if (!targetId && cleanName) {
-//             const findMed = await pool.query(
-//                 `SELECT inventory_id FROM shop_inventory 
-//                  WHERE owner_id = $1 AND LOWER(TRIM(medicine_name)) = LOWER(TRIM($2)) LIMIT 1`,
-//                 [owner_id, cleanName]
-//             );
-//             if (findMed.rows.length > 0) targetId = findMed.rows[0].inventory_id;
-//         }
-
-//         if (targetId) {
-//             const updatedMedicine = await pool.query(
-//                 `UPDATE shop_inventory 
-//                  SET quantity = quantity + $1, 
-//                      batch_no = COALESCE(NULLIF($2, ''), batch_no),
-//                      mrp = COALESCE(NULLIF($3, 0), mrp),
-//                      tablets_per_strip = $4
-//                  WHERE inventory_id = $5 RETURNING *`,
-//                 [parseFloat(quantity) || 0, batch_no, parseFloat(mrp) || 0, finalTps, targetId]
-//             );
-//             console.log(`✅ SUCCESS: DB UPDATED! New Pack Size = ${updatedMedicine.rows[0].tablets_per_strip}`);
-//             res.json({ success: true, message: "Stock & Pack Size Updated! 🔄", data: updatedMedicine.rows[0] });
-//         } else {
-//             const newMedicine = await pool.query(
-//                 `INSERT INTO shop_inventory (owner_id, medicine_name, batch_no, quantity, mrp, expiry_date, barcode, tablets_per_strip) 
-//                  VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
-//                 [owner_id, cleanName, batch_no, parseFloat(quantity) || 0, parseFloat(mrp) || 0, expiry_date, barcode, finalTps]
-//             );
-//             console.log(`✅ SUCCESS: DB INSERTED! New Pack Size = ${newMedicine.rows[0].tablets_per_strip}`);
-//             res.json({ success: true, message: "New Medicine Added! ✅", data: newMedicine.rows[0] });
-//         }
-//     } catch (err) {
-//         console.error("❌ Add Medicine Server Error:", err.message);
-//         res.status(500).json({ error: 'Failed to process medicine.' });
-//     }
-// });
 
 app.post('/api/add-medicine', async (req, res) => {
     let { owner_id, inventory_id, medicine_name, batch_no, quantity, mrp, expiry_date, barcode, tablets_per_strip } = req.body;
@@ -534,57 +483,7 @@ app.get('/api/recent-bills/:owner_id', async (req, res) => {
     }
 });
 
-// app.post('/api/return-medicine', async (req, res) => {
-//     const { owner_id, invoice_id, item_id, medicine_name, return_quantity, mrp } = req.body;
-//     const client = await pool.connect();
-    
-//     try {
-//         await client.query('BEGIN');
 
-        
-//         const itemUpdate = await client.query(
-//             `UPDATE sale_items SET quantity = quantity - $1 WHERE item_id = $2 RETURNING quantity`,
-//             [return_quantity, item_id]
-//         );
-
-        
-//         if (itemUpdate.rows[0].quantity <= 0) {
-//             await client.query(`DELETE FROM sale_items WHERE item_id = $1`, [item_id]);
-//         }
-
-        
-//         const refundAmount = return_quantity * mrp;
-//         await client.query(
-//             `UPDATE sales_invoices SET total_amount = total_amount - $1 WHERE invoice_id = $2`,
-//             [refundAmount, invoice_id]
-//         );
-
-        
-//         const invUpdate = await client.query(
-//             `UPDATE shop_inventory SET quantity = quantity + $1 
-//              WHERE owner_id = $2 AND medicine_name = $3 AND mrp = $4 RETURNING *`,
-//             [return_quantity, owner_id, medicine_name, mrp]
-//         );
-
-        
-//         if (invUpdate.rows.length === 0) {
-//             await client.query(
-//                 `INSERT INTO shop_inventory (owner_id, medicine_name, quantity, mrp, batch_no) 
-//                  VALUES ($1, $2, $3, $4, 'RETURNED')`,
-//                 [owner_id, medicine_name, return_quantity, mrp]
-//             );
-//         }
-
-//         await client.query('COMMIT');
-//         res.json({ success: true, message: `Returned ${return_quantity} ${medicine_name} successfully! Stock updated.` });
-//     } catch (err) {
-//         await client.query('ROLLBACK');
-//         console.error("Return Medicine Error:", err.message);
-//         res.status(500).json({ error: 'Failed to process return' });
-//     } finally {
-//         client.release();
-//     }
-// });
 
 app.post('/api/return-medicine', async (req, res) => {
     const { owner_id, invoice_id, item_id, medicine_name, return_quantity, mrp, refund_amount } = req.body;
