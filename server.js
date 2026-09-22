@@ -599,12 +599,22 @@ app.get('/api/search-bills/:owner_id', async (req, res) => {
 
     try {
         const searchTerm = `%${query}%`;
-        // मान कर चल रहे हैं कि आपकी sales टेबल में cart_items (JSON), total_amount, customer_name, customer_mobile सेव होता है
+        
+        // 🔥 Flutter UI ke hisaab se columns ko rename (AS) kiya gaya hai
         const searchResult = await pool.query(
-            `SELECT * FROM sales 
+            `SELECT 
+                id AS invoice_id, 
+                invoice_no, 
+                customer_name, 
+                customer_mobile, 
+                total_amount, 
+                cart_items AS items, 
+                created_at AS sale_date 
+             FROM sales 
              WHERE owner_id = $1 
-             AND (customer_mobile LIKE $2 OR customer_name ILIKE $2)
-             ORDER BY created_at DESC LIMIT 20`,
+             AND (customer_mobile ILIKE $2 OR customer_name ILIKE $2)
+             ORDER BY created_at DESC 
+             LIMIT 20`,
             [owner_id, searchTerm]
         );
 
@@ -614,7 +624,6 @@ app.get('/api/search-bills/:owner_id', async (req, res) => {
         res.status(500).json({ error: 'Failed to search bills.' });
     }
 });
-
 console.log(`refund fix test`);
 
 const PORT = process.env.PORT || 5000;
