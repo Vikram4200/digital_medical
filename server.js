@@ -12,7 +12,7 @@ app.use(express.json());
 
 // Database Connection
 const pool = new Pool({
-    connectionString: "postgresql://neondb_owner:npg_9C6loJXkbtMq@ep-orange-sea-b5mzdw3r-pooler.c-7.us-east-2.aws.neon.tech/neondb?sslmode=require&channel_binding=require",
+    connectionString: "postgresql://neondb_owner:npg_vaL4wAZKyh7X@ep-orange-sea-b5mzdw3r-pooler.c-7.us-east-2.aws.neon.tech/neondb?sslmode=require&channel_binding=require",
     ssl: { rejectUnauthorized: false }
 });
 
@@ -592,7 +592,7 @@ app.put('/api/inventory/quick-edit/:id', async (req, res) => {
     }
 });
 
-// 🔍 SEARCH BILLS BY CUSTOMER NAME OR MOBILE
+// 🔍 SEARCH BILLS BY CUSTOMER NAME OR MOBILE (FIXED)
 app.get('/api/search-bills/:owner_id', async (req, res) => {
     const { owner_id } = req.params;
     const { query } = req.query;
@@ -600,20 +600,31 @@ app.get('/api/search-bills/:owner_id', async (req, res) => {
     try {
         const searchTerm = `%${query}%`;
         
-        // 🔥 Flutter UI ke hisaab se columns ko rename (AS) kiya gaya hai
+        // Flutter ko exact wahi data format chahiye jo recent-bills deta hai
         const searchResult = await pool.query(
             `SELECT 
-                id AS invoice_id, 
-                invoice_no, 
-                customer_name, 
-                customer_mobile, 
-                total_amount, 
-                cart_items AS items, 
-                created_at AS sale_date 
-             FROM sales 
-             WHERE owner_id = $1 
-             AND (customer_mobile ILIKE $2 OR customer_name ILIKE $2)
-             ORDER BY created_at DESC 
+                si.invoice_id, 
+                si.invoice_no, 
+                si.customer_name, 
+                si.customer_mobile, 
+                si.total_amount, 
+                si.sale_date,
+                COALESCE(
+                    json_agg(
+                        json_build_object(
+                            'item_id', item.item_id,
+                            'medicine_name', item.medicine_name,
+                            'quantity', item.quantity,
+                            'mrp', item.mrp
+                        )
+                    ) FILTER (WHERE item.item_id IS NOT NULL), '[]'
+                ) AS items
+             FROM sales_invoices si
+             LEFT JOIN sale_items item ON si.invoice_id = item.invoice_id
+             WHERE si.owner_id = $1 
+             AND (si.customer_mobile ILIKE $2 OR si.customer_name ILIKE $2)
+             GROUP BY si.invoice_id
+             ORDER BY si.sale_date DESC 
              LIMIT 20`,
             [owner_id, searchTerm]
         );
@@ -624,7 +635,6 @@ app.get('/api/search-bills/:owner_id', async (req, res) => {
         res.status(500).json({ error: 'Failed to search bills.' });
     }
 });
-console.log(`refund fix test`);
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
