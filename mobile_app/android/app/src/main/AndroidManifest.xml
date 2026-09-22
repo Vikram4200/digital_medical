@@ -1,10 +1,10 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     
-    <!-- 🔥 Ye line app ko internet use karne ki permission deti hai -->
+
     <uses-permission android:name="android.permission.INTERNET" />
 
     <application
-        android:label="mobile_app"
+        android:label="MediKart"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity
